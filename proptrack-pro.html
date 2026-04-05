@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>PropTrack Pro</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0b0d10;--surface:#13171e;--surface2:#1b2029;--surface3:#222a35;
+  --border:#26303d;--border2:#303d4d;
+  --accent:#f0c040;--accent-dim:rgba(240,192,64,0.12);
+  --green:#3dd68c;--green-dim:rgba(61,214,140,0.12);
+  --red:#e05a6c;--red-dim:rgba(224,90,108,0.12);
+  --blue:#60a5fa;--blue-dim:rgba(96,165,250,0.12);
+  --purple:#a78bfa;--purple-dim:rgba(167,139,250,0.12);
+  --text:#eef1f5;--text2:#b0bac8;--muted:#68788a;
+  --radius:14px;--radius-sm:10px;--radius-xs:7px;
+}
+html,body{height:100%;background:#0a0b10;color:var(--text);font-family:'DM Mono',monospace;-webkit-font-smoothing:antialiased}
+
+/* ── APP SHELL ── */
+#app{
+  max-width:430px;margin:0 auto;min-height:100vh;
+  display:flex;flex-direction:column;
+  background:var(--bg);box-shadow:0 0 120px rgba(0,0,0,0.8);
+  /* NO overflow hidden/clip here — kills child scrollers */
+}
+
+/* ── TOP BAR ── */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 18px 12px;border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:60;
+  background:rgba(11,13,16,0.96);backdrop-filter:blur(16px);
+  flex-shrink:0;
+}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:19px;letter-spacing:-0.5px;display:flex;align-items:center;gap:8px}
+.logo-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent)}
+.logo span{color:var(--accent)}
+.topbar-actions{display:flex;gap:6px}
+.tb-btn{
+  background:var(--surface2);border:1px solid var(--border);color:var(--text2);
+  border-radius:var(--radius-xs);padding:6px 11px;cursor:pointer;
+  font-family:'DM Mono',monospace;font-size:11px;
+  display:flex;align-items:center;gap:5px;transition:all 0.15s;white-space:nowrap;
+}
+.tb-btn:hover{border-color:var(--accent);color:var(--accent)}
+.tb-btn svg{width:13px;height:13px;flex-shrink:0}
+
+/* ── BOTTOM NAV ── */
+.bottom-nav{
+  display:flex;flex-shrink:0;
+  position:sticky;bottom:0;z-index:60;
+  background:rgba(11,13,16,0.97);backdrop-filter:blur(16px);
+  border-top:1px solid var(--border);padding:8px 4px 20px;gap:2px;
+}
+.bn-tab{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:8px 4px;border-radius:var(--radius-sm);cursor:pointer;
+  transition:all 0.18s;border:none;background:transparent;color:var(--muted);
+}
+.bn-tab svg{width:20px;height:20px;transition:all 0.18s}
+.bn-tab span{font-family:'Syne',sans-serif;font-size:10px;font-weight:600;letter-spacing:0.3px;transition:all 0.18s}
+.bn-tab.active{color:var(--accent)}
+.bn-tab.active svg{filter:drop-shadow(0 0 6px rgba(240,192,64,0.5))}
+
+/* ── SCROLLABLE CONTENT AREA ── */
+/* This is the ONLY element that scrolls vertically. No overflow-x set here. */
+.content{
+  flex:1;
+  overflow-y:auto;
+  overflow-x:hidden; /* hides page-level x but does NOT clip children with their own scroll context */
+  min-height:0;
+}
+.page{display:none}
+.page.active{display:block}
+
+/* ── PADDED INNER — wraps everything EXCEPT the scroll row ── */
+.page-inner{padding:16px 16px 0}
+.page-inner-bottom{padding:0 16px 24px}
+
+/* ── HORIZONTAL SCROLL ROW ── */
+/* Full-width, no padding, own scroll context — never inside a padded container */
+.prop-scroll-row{
+  width:100%;
+  overflow-x:auto;
+  overflow-y:visible;
+  -webkit-overflow-scrolling:touch;
+  scroll-snap-type:x mandatory;
+  scrollbar-width:none;
+  padding:0 16px 12px 16px;
+  margin-bottom:4px;
+  /* display flex on the inner track, not here */
+}
+.prop-scroll-row::-webkit-scrollbar{display:none}
+.prop-scroll-track{
+  display:inline-flex;   /* shrink-wraps to content width */
+  gap:12px;
+  min-width:100%;        /* at least full width so it fills */
+}
+
+/* ── PROPERTY CARDS ── */
+.prop-card{
+  flex-shrink:0;width:190px;
+  background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);
+  padding:14px;cursor:pointer;transition:all 0.2s;
+  scroll-snap-align:start;position:relative;overflow:hidden;
+}
+.prop-card::before{
+  content:'';position:absolute;top:-20px;right:-20px;
+  width:80px;height:80px;border-radius:50%;background:var(--accent-dim);transition:all 0.3s;
+}
+.prop-card:hover::before{width:110px;height:110px}
+.prop-card.selected{border-color:var(--accent);background:linear-gradient(135deg,#1a2010 0%,var(--surface) 100%)}
+.prop-card.add-card{
+  border-style:dashed;color:var(--muted);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;min-height:110px;
+}
+.prop-card.add-card:hover{border-color:var(--green);color:var(--green)}
+.prop-card-icon{font-size:22px;margin-bottom:6px}
+.prop-card-name{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prop-card-addr{font-size:10px;color:var(--muted);margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prop-card-stats{display:flex;gap:12px}
+.prop-card-stat{display:flex;flex-direction:column;gap:1px}
+.prop-card-stat-val{font-family:'Syne',sans-serif;font-size:12px;font-weight:700}
+.prop-card-stat-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px}
+.prop-card-badge{
+  position:absolute;top:10px;right:10px;
+  font-size:9px;font-family:'Syne',sans-serif;font-weight:700;
+  padding:2px 7px;border-radius:20px;letter-spacing:0.3px;
+}
+
+/* ── SECTION LABELS ── */
+.sec-label{font-size:10px;letter-spacing:1.8px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;font-weight:500;display:flex;align-items:center;justify-content:space-between}
+.sec-label-action{color:var(--accent);cursor:pointer;font-size:10px;letter-spacing:0;text-transform:none}
+.sec-label-action:hover{opacity:0.8}
+
+/* ── SUMMARY BANNER ── */
+.summary-banner{
+  background:linear-gradient(135deg,#141d2a 0%,#1a2535 100%);
+  border:1px solid var(--border);border-radius:var(--radius);
+  padding:18px;margin-bottom:16px;position:relative;overflow:hidden;
+}
+.summary-banner::after{content:'';position:absolute;bottom:-40px;right:-40px;width:140px;height:140px;border-radius:50%;background:rgba(240,192,64,0.04)}
+.summary-total{font-family:'Syne',sans-serif;font-size:34px;font-weight:800;color:var(--accent);line-height:1;margin-bottom:4px}
+.summary-sublabel{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px}
+.summary-row{display:flex;gap:18px;flex-wrap:wrap}
+.summary-stat{display:flex;flex-direction:column;gap:1px}
+.summary-stat-v{font-family:'Syne',sans-serif;font-size:14px;font-weight:700}
+.summary-stat-l{font-size:9px;color:var(--muted);letter-spacing:0.5px;text-transform:uppercase}
+
+/* ── EXPENSE ITEMS ── */
+.expense-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:13px 14px;margin-bottom:8px;display:flex;align-items:center;gap:11px;cursor:pointer;transition:all 0.15s}
+.expense-item:hover{background:var(--surface2);border-color:var(--border2)}
+.exp-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.exp-body{flex:1;min-width:0}
+.exp-desc{font-family:'Syne',sans-serif;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.exp-sub{font-size:10px;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.exp-amount{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--red);white-space:nowrap}
+.exp-date{font-size:9px;color:var(--muted);margin-top:2px;text-align:right}
+.sche-pill{display:inline-flex;align-items:center;border-radius:5px;padding:2px 6px;font-size:9px;font-weight:600;font-family:'Syne',sans-serif;white-space:nowrap}
+
+/* ── TENANT CARDS ── */
+.tenant-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:10px;transition:all 0.15s}
+.tenant-card:hover{background:var(--surface2);border-color:var(--border2)}
+.tenant-header{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.tenant-avatar{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:16px;font-weight:800;flex-shrink:0;color:#0d0f12}
+.tenant-name{font-family:'Syne',sans-serif;font-size:14px;font-weight:700}
+.tenant-unit{font-size:11px;color:var(--muted);margin-top:2px}
+.tenant-footer{display:flex;gap:8px;flex-wrap:wrap}
+.tenant-tag{display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:3px 8px;font-size:10px;color:var(--text2)}
+.tenant-actions{display:flex;gap:8px;margin-top:10px}
+.tenant-action-btn{flex:1;padding:8px;border-radius:var(--radius-xs);font-family:'Syne',sans-serif;font-size:11px;font-weight:700;border:1.5px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;transition:all 0.15s;display:flex;align-items:center;justify-content:center;gap:5px}
+.tenant-action-btn:hover{border-color:var(--accent);color:var(--accent)}
+.tenant-action-btn.sms{border-color:rgba(96,165,250,0.3);color:var(--blue)}
+.tenant-action-btn.sms:hover{background:var(--blue-dim);border-color:var(--blue)}
+
+/* ── MESSAGES ── */
+.msg-filter{display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.msg-filter::-webkit-scrollbar{display:none}
+.msg-filter-chip{flex-shrink:0;padding:6px 14px;border-radius:20px;font-family:'Syne',sans-serif;font-size:11px;font-weight:600;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);cursor:pointer;transition:all 0.15s;white-space:nowrap}
+.msg-filter-chip.active{border-color:var(--blue);background:var(--blue-dim);color:var(--blue)}
+.msg-compose-btn{width:100%;padding:14px;border-radius:var(--radius-sm);background:linear-gradient(135deg,#0d2040,#0d1a35);border:1.5px solid rgba(96,165,250,0.3);color:var(--blue);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:20px}
+.msg-compose-btn:hover{border-color:var(--blue);background:var(--blue-dim)}
+.msg-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:8px;cursor:pointer;transition:all 0.15s}
+.msg-item:hover{background:var(--surface2)}
+.msg-item-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.msg-item-to{font-family:'Syne',sans-serif;font-size:12px;font-weight:700}
+.msg-item-time{font-size:10px;color:var(--muted)}
+.msg-item-body{font-size:12px;color:var(--text2);line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msg-item-meta{display:flex;gap:8px;margin-top:8px;align-items:center}
+.msg-status{display:inline-flex;align-items:center;gap:4px;font-size:10px;border-radius:5px;padding:2px 7px;font-family:'Syne',sans-serif;font-weight:600}
+.msg-status.sent{background:var(--green-dim);color:var(--green)}
+.msg-status.broadcast{background:var(--blue-dim);color:var(--blue)}
+.broadcast-banner{background:linear-gradient(135deg,#0a1a2e,#0d2040);border:1.5px solid rgba(96,165,250,0.25);border-radius:var(--radius);padding:16px;margin-bottom:16px;display:flex;align-items:center;gap:12px}
+.broadcast-icon{font-size:26px;flex-shrink:0}
+.broadcast-title{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--blue)}
+.broadcast-sub{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.5}
+
+/* ── SCHEDULE E ── */
+.sche-table{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px}
+.sche-table-hdr{display:grid;grid-template-columns:1fr 54px 76px;gap:8px;padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border)}
+.sche-table-hdr span{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:500}
+.sche-table-hdr span:last-child{text-align:right}
+.sche-row{display:grid;grid-template-columns:1fr 54px 76px;gap:8px;padding:11px 14px;border-bottom:1px solid var(--border);align-items:center}
+.sche-row:last-child{border-bottom:none}
+.sche-row-name{font-size:12px;display:flex;align-items:center;gap:6px}
+.sche-row-line{font-size:10px;color:var(--muted)}
+.sche-row-amt{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--accent);text-align:right}
+.sche-total{display:flex;justify-content:space-between;align-items:center;padding:13px 14px;background:var(--accent-dim);border-top:1px solid rgba(240,192,64,0.2)}
+.sche-total-l{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--accent)}
+.sche-total-v{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--accent)}
+.bar-chart{margin-bottom:20px}
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.bar-lbl{font-size:10px;color:var(--muted);width:108px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-track{flex:1;height:7px;background:var(--surface2);border-radius:4px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width 0.7s cubic-bezier(0.34,1.56,0.64,1)}
+.bar-val{font-size:11px;color:var(--text);width:62px;text-align:right;flex-shrink:0;font-family:'Syne',sans-serif;font-weight:600}
+.irs-notice{background:var(--green-dim);border:1px solid rgba(61,214,140,0.2);border-radius:var(--radius-xs);padding:10px 12px;font-size:10px;color:var(--muted);line-height:1.7;margin-bottom:14px}
+.irs-notice strong{color:var(--green)}
+
+/* ── MODALS ── */
+.backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.82);backdrop-filter:blur(6px);z-index:200;display:flex;align-items:flex-end;justify-content:center;animation:fadein 0.18s}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.sheet{width:100%;max-width:430px;background:var(--surface);border-radius:22px 22px 0 0;padding:22px 18px 40px;max-height:90vh;overflow-y:auto;animation:slideup 0.26s cubic-bezier(0.32,0.72,0,1)}
+@keyframes slideup{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.sheet-handle{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 20px}
+.sheet-title{font-family:'Syne',sans-serif;font-size:19px;font-weight:800;margin-bottom:18px}
+.sheet-subtitle{font-size:11px;color:var(--muted);margin-top:-14px;margin-bottom:18px;line-height:1.6}
+.miss-sheet{width:100%;max-width:430px;background:var(--surface);border-radius:22px 22px 0 0;max-height:90vh;overflow-y:auto;animation:slideup 0.26s cubic-bezier(0.32,0.72,0,1)}
+.miss-hdr{background:var(--red-dim);border-bottom:1px solid rgba(224,90,108,0.25);padding:18px;border-radius:22px 22px 0 0}
+.miss-hdr-title{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:var(--red)}
+.miss-hdr-sub{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.5}
+.miss-body{padding:18px}
+
+/* ── FORMS ── */
+.form-group{margin-bottom:13px}
+.form-label{font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;display:block;font-weight:500}
+.form-input{width:100%;padding:11px 13px;background:var(--surface2);border:1.5px solid var(--border);border-radius:var(--radius-xs);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;outline:none;transition:border-color 0.15s}
+.form-input:focus{border-color:var(--accent)}
+.form-input::placeholder{color:var(--muted)}
+select.form-input{cursor:pointer}
+textarea.form-input{resize:vertical;min-height:80px;line-height:1.6}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:4px}
+.cat-opt{background:var(--surface2);border:1.5px solid var(--border);border-radius:var(--radius-xs);padding:9px;cursor:pointer;transition:all 0.15s}
+.cat-opt:hover{border-color:var(--border2)}
+.cat-opt.sel{border-color:var(--accent);background:var(--accent-dim)}
+.cat-opt-icon{font-size:16px;margin-bottom:4px}
+.cat-opt-name{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;color:var(--text)}
+.cat-opt-line{font-size:9px;color:var(--muted);margin-top:1px}
+
+/* ── UPLOAD ── */
+.upload-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:28px 16px;text-align:center;cursor:pointer;transition:all 0.2s;margin-bottom:12px;background:var(--surface2);position:relative}
+.upload-zone:hover{border-color:var(--accent);background:var(--accent-dim)}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-icon{font-size:30px;margin-bottom:8px}
+.upload-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:3px}
+.upload-sub{font-size:11px;color:var(--muted)}
+.or-div{display:flex;align-items:center;gap:10px;margin:12px 0;color:var(--muted);font-size:11px}
+.or-div::before,.or-div::after{content:'';flex:1;height:1px;background:var(--border)}
+.cam-btn{width:100%;padding:12px;border-radius:var(--radius-xs);background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);font-family:'Syne',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all 0.15s;margin-bottom:12px;position:relative;overflow:hidden}
+.cam-btn input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.cam-btn:hover{border-color:var(--green);color:var(--green)}
+.manual-btn{width:100%;padding:12px;border-radius:var(--radius-xs);background:transparent;border:1.5px solid var(--border);color:var(--muted);font-family:'Syne',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s;margin-bottom:6px}
+.manual-btn:hover{border-color:var(--accent);color:var(--accent)}
+.parsing-box{display:flex;align-items:center;gap:10px;background:var(--accent-dim);border:1px solid rgba(240,192,64,0.22);border-radius:var(--radius-xs);padding:12px 13px;margin-bottom:13px}
+.spinner{width:15px;height:15px;border:2px solid rgba(240,192,64,0.3);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.parsing-text{font-size:11px;color:var(--accent)}
+.img-preview{width:100%;border-radius:var(--radius-xs);margin-bottom:12px;max-height:170px;object-fit:cover;border:1px solid var(--border)}
+.ai-tag{display:inline-flex;align-items:center;gap:4px;background:var(--accent-dim);color:var(--accent);border-radius:5px;padding:3px 9px;font-size:10px;font-weight:500;margin-bottom:12px}
+
+/* ── BUTTONS ── */
+.btn{width:100%;padding:13px;border-radius:var(--radius-xs);font-family:'Syne',sans-serif;font-size:14px;font-weight:800;border:none;cursor:pointer;transition:all 0.15s;letter-spacing:0.2px;margin-top:8px}
+.btn-primary{background:var(--accent);color:#0b0d10}
+.btn-primary:hover{background:#f5cd55;transform:translateY(-1px)}
+.btn-secondary{background:transparent;color:var(--muted);border:1.5px solid var(--border);padding:11px}
+.btn-secondary:hover{border-color:var(--muted);color:var(--text)}
+.btn-danger{background:var(--red-dim);color:var(--red);border:1.5px solid rgba(224,90,108,0.3)}
+.btn-danger:hover{background:rgba(224,90,108,0.2)}
+.btn-blue{background:var(--blue-dim);color:var(--blue);border:1.5px solid rgba(96,165,250,0.3)}
+.btn-blue:hover{background:rgba(96,165,250,0.2)}
+
+/* ── DETAIL BOX ── */
+.detail-box{background:var(--surface2);border-radius:var(--radius-xs);padding:4px 14px;margin-bottom:16px}
+.detail-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
+.detail-row:last-child{border-bottom:none}
+.detail-lbl{color:var(--muted);font-size:12px}
+.detail-val{font-size:12px;font-family:'Syne',sans-serif;font-weight:600}
+
+/* ── EMPTY STATE ── */
+.empty-state{text-align:center;padding:48px 20px;color:var(--muted)}
+.empty-icon{font-size:48px;margin-bottom:12px}
+.empty-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px}
+.empty-sub{font-size:12px;line-height:1.7}
+
+/* ── TENANT PROFILE ── */
+.tenant-profile-hdr{background:linear-gradient(135deg,var(--surface2),var(--surface3));border-bottom:1px solid var(--border);padding:20px 18px;border-radius:22px 22px 0 0;display:flex;align-items:center;gap:14px}
+.tenant-profile-avatar{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#0d0f12;flex-shrink:0}
+.tenant-profile-name{font-family:'Syne',sans-serif;font-size:18px;font-weight:800}
+.tenant-profile-unit{font-size:12px;color:var(--muted);margin-top:3px}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:88px;left:50%;transform:translateX(-50%) translateY(12px);background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-xs);padding:10px 18px;font-size:12px;color:var(--text);z-index:500;opacity:0;transition:all 0.28s;pointer-events:none;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,0.5)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.success{border-color:rgba(61,214,140,0.4);color:var(--green)}
+.toast.error{border-color:rgba(224,90,108,0.4);color:var(--red)}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <div class="logo"><div class="logo-dot"></div>Prop<span>Track</span> <span style="color:var(--muted);font-size:12px;font-weight:400">Pro</span></div>
+    <div class="topbar-actions">
+      <button class="tb-btn" onclick="openAddExpenseSheet()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Expense
+      </button>
+      <button class="tb-btn" onclick="openExportSheet()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="page active" id="page-expenses"></div>
+    <div class="page" id="page-tenants"></div>
+    <div class="page" id="page-messages"></div>
+    <div class="page" id="page-scheduleE"></div>
+  </div>
+
+  <div class="bottom-nav">
+    <button class="bn-tab active" onclick="switchPage('expenses',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <span>Expenses</span>
+    </button>
+    <button class="bn-tab" onclick="switchPage('tenants',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span>Tenants</span>
+    </button>
+    <button class="bn-tab" onclick="switchPage('messages',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span>Messages</span>
+    </button>
+    <button class="bn-tab" onclick="switchPage('scheduleE',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      <span>Schedule E</span>
+    </button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// SCHEDULE E CATEGORIES
+// ═══════════════════════════════════════════════════════
+const SCHE_CATS=[
+  {id:'advertising',       line:'Line 5', icon:'📢',name:'Advertising',         desc:'Listings, signs, rental ads'},
+  {id:'auto_travel',       line:'Line 6', icon:'🚗',name:'Auto & Travel',        desc:'Miles/costs to property'},
+  {id:'cleaning_maint',    line:'Line 7', icon:'🧹',name:'Cleaning & Maint.',    desc:'Cleaning, lawn, pest control'},
+  {id:'commissions',       line:'Line 8', icon:'🤝',name:'Commissions',          desc:'Leasing agent commissions'},
+  {id:'insurance',         line:'Line 9', icon:'🛡️',name:'Insurance',            desc:'Hazard, liability, flood'},
+  {id:'legal_professional',line:'Line 10',icon:'⚖️',name:'Legal & Professional', desc:'Attorneys, accountants'},
+  {id:'mgmt_fees',         line:'Line 11',icon:'🏢',name:'Management Fees',      desc:'Property manager fees'},
+  {id:'mortgage_interest', line:'Line 12',icon:'🏦',name:'Mortgage Interest',    desc:'Interest on rental mortgage'},
+  {id:'other_interest',    line:'Line 13',icon:'💳',name:'Other Interest',       desc:'HELOC & other loans'},
+  {id:'repairs',           line:'Line 14',icon:'🔧',name:'Repairs',              desc:'Fixes restoring condition'},
+  {id:'supplies',          line:'Line 15',icon:'🧰',name:'Supplies',             desc:'Tools, hardware, materials'},
+  {id:'taxes',             line:'Line 16',icon:'🏛️',name:'Taxes',                desc:'Property & school district'},
+  {id:'utilities',         line:'Line 17',icon:'⚡',name:'Utilities',            desc:'Electric, gas, water'},
+  {id:'depreciation',      line:'Line 18',icon:'📉',name:'Depreciation',         desc:'Annual depreciation'},
+  {id:'other',             line:'Line 19',icon:'📋',name:'Other Expenses',       desc:'HOA, bank fees, misc.'},
+];
+const catMap=Object.fromEntries(SCHE_CATS.map(c=>[c.id,c]));
+const CAT_COLORS=['#f0c040','#3dd68c','#e05a6c','#60a5fa','#a78bfa','#f97316','#06b6d4','#ec4899','#84cc16','#f59e0b','#10b981','#6366f1','#ef4444','#8b5cf6','#14b8a6'];
+const catColor=id=>{const i=SCHE_CATS.findIndex(c=>c.id===id);return CAT_COLORS[Math.max(i,0)%CAT_COLORS.length]};
+const AVATAR_COLORS=['#f0c040','#3dd68c','#60a5fa','#a78bfa','#f97316','#ec4899','#06b6d4'];
+
+// ═══════════════════════════════════════════════════════
+// PERSISTENCE — localStorage save/load
+// ═══════════════════════════════════════════════════════
+const STORAGE_KEY = 'proptrack_data_v1';
+
+// Default seed data — only used the very first time the app loads
+const DEFAULT_DATA = {
+  properties:[
+    {id:'p1',name:'123 Oak St',address:'123 Oak St, Chicago, IL',type:'Single Family',units:1},
+    {id:'p2',name:'456 Maple Ave',address:'456 Maple Ave, Evanston, IL',type:'Duplex',units:2},
+    {id:'p3',name:'789 Pine Rd',address:'789 Pine Rd, Naperville, IL',type:'Condo',units:1},
+  ],
+  tenants:[
+    {id:'t1',propId:'p1',name:'Marcus Johnson',phone:'3125550101',unit:'Unit 1',rent:1850,leaseEnd:'2025-12-31',status:'current',email:'marcus.j@email.com'},
+    {id:'t2',propId:'p2',name:'Sarah Chen',phone:'3125550202',unit:'Unit A',rent:1400,leaseEnd:'2025-09-30',status:'current',email:'s.chen@email.com'},
+    {id:'t3',propId:'p2',name:'Derek Williams',phone:'3125550303',unit:'Unit B',rent:1350,leaseEnd:'2025-06-30',status:'expiring',email:'d.williams@email.com'},
+    {id:'t4',propId:'p3',name:'Priya Patel',phone:'3125550404',unit:'Unit 1',rent:2100,leaseEnd:'2026-03-31',status:'current',email:'p.patel@email.com'},
+  ],
+  expenses:[
+    {id:'e1',propId:'p1',desc:'HVAC Repair',amount:850,date:'2025-03-12',vendor:'CoolAir Services',category:'repairs'},
+    {id:'e2',propId:'p1',desc:'Water Heater Fix',amount:1200,date:'2025-02-28',vendor:'PlumbRight Co',category:'repairs'},
+    {id:'e3',propId:'p2',desc:'Property Tax Q1',amount:3400,date:'2025-01-15',vendor:'Cook County',category:'taxes'},
+    {id:'e4',propId:'p2',desc:'Landscaping',amount:320,date:'2025-03-01',vendor:'GreenThumb LLC',category:'cleaning_maint'},
+    {id:'e5',propId:'p1',desc:'Electric Bill',amount:175,date:'2025-03-10',vendor:'ComEd',category:'utilities'},
+    {id:'e6',propId:'p1',desc:'Homeowners Insurance',amount:1800,date:'2025-01-01',vendor:'State Farm',category:'insurance'},
+    {id:'e7',propId:'p2',desc:'Property Manager',amount:960,date:'2025-02-01',vendor:'HomeVest Mgmt',category:'mgmt_fees'},
+    {id:'e8',propId:'p3',desc:'Condo HOA Fee',amount:480,date:'2025-03-01',vendor:'Pine Rd HOA',category:'other'},
+  ],
+  messages:[
+    {id:'m1',type:'unicast',toId:'t1',toName:'Marcus Johnson',propId:'p1',body:'Hi Marcus, your rent statement for March is ready. Total due: $1,850.',sent:'2025-03-01',status:'sent'},
+    {id:'m2',type:'broadcast',toId:null,toName:'All Tenants',propId:'p1',body:'Reminder: Water will be shut off for maintenance Saturday 9am–12pm.',sent:'2025-02-28',status:'sent'},
+    {id:'m3',type:'unicast',toId:'t3',toName:'Derek Williams',propId:'p2',body:'Hi Derek, your lease expires June 30. Would you like to renew?',sent:'2025-03-05',status:'sent'},
+  ],
+};
+
+function loadFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) { console.warn('Could not load saved data:', e); }
+  return null;
+}
+
+function saveToStorage() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      properties: state.properties,
+      tenants:    state.tenants,
+      expenses:   state.expenses,
+      messages:   state.messages,
+    }));
+  } catch(e) { console.warn('Could not save data:', e); }
+}
+
+// Load saved data or fall back to defaults
+const saved = loadFromStorage();
+
+// ═══════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════
+const state = {
+  activePage:       'expenses',
+  selectedProp:     'all',
+  properties:       saved ? saved.properties : DEFAULT_DATA.properties,
+  tenants:          saved ? saved.tenants    : DEFAULT_DATA.tenants,
+  expenses:         saved ? saved.expenses   : DEFAULT_DATA.expenses,
+  messages:         saved ? saved.messages   : DEFAULT_DATA.messages,
+  parsedImage:      null,
+  pendingExpense:   null,
+  selectedCategory: null,
+  msgFilter:        'all',
+};
+
+// ═══════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════
+const $=id=>document.getElementById(id);
+const uid=()=>'x'+Date.now()+Math.random().toString(36).slice(2,5);
+const fmt=n=>'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtDate=d=>{if(!d)return'—';try{return new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}catch(e){return d}};
+const today=()=>new Date().toISOString().slice(0,10);
+const initials=name=>name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+const avatarColor=id=>{const i=state.tenants.findIndex(t=>t.id===id);return AVATAR_COLORS[Math.max(i,0)%AVATAR_COLORS.length]};
+
+function showToast(msg,type=''){
+  const t=$('toast');t.textContent=msg;t.className='toast show'+(type?' '+type:'');
+  clearTimeout(t._tid);t._tid=setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+// ═══════════════════════════════════════════════════════
+// SCROLL ROW BUILDER — creates a proper DOM structure
+// that guarantees horizontal scroll works
+// ═══════════════════════════════════════════════════════
+function buildScrollRow(cards) {
+  const row = document.createElement('div');
+  row.className = 'prop-scroll-row';
+  const track = document.createElement('div');
+  track.className = 'prop-scroll-track';
+  cards.forEach(cardEl => track.appendChild(cardEl));
+  row.appendChild(track);
+  return row;
+}
+
+function makePropCard(p, selected, expenses, tenants) {
+  const pTotal = expenses.filter(e=>e.propId===p.id).reduce((s,e)=>s+Number(e.amount),0);
+  const pTenants = tenants.filter(t=>t.propId===p.id);
+  const expiring = pTenants.filter(t=>t.status==='expiring').length;
+  const card = document.createElement('div');
+  card.className = 'prop-card' + (selected?' selected':'');
+  card.onclick = () => { state.selectedProp = p.id; render(); };
+  card.innerHTML = `
+    ${expiring?`<div class="prop-card-badge" style="background:var(--red-dim);color:var(--red)">${expiring} expiring</div>`:''}
+    <div class="prop-card-icon">🏠</div>
+    <div class="prop-card-name">${p.name}</div>
+    <div class="prop-card-addr">${p.address}</div>
+    <div class="prop-card-stats">
+      <div class="prop-card-stat">
+        <div class="prop-card-stat-val" style="color:var(--red)">${fmt(pTotal)}</div>
+        <div class="prop-card-stat-lbl">Expenses</div>
+      </div>
+      <div class="prop-card-stat">
+        <div class="prop-card-stat-val" style="color:var(--green)">${pTenants.length}</div>
+        <div class="prop-card-stat-lbl">Tenants</div>
+      </div>
+    </div>`;
+  return card;
+}
+
+function makeAllCard(selected, expenses) {
+  const total = expenses.reduce((s,e)=>s+Number(e.amount),0);
+  const card = document.createElement('div');
+  card.className = 'prop-card' + (selected?' selected':'');
+  card.style.minWidth = '150px';
+  card.onclick = () => { state.selectedProp = 'all'; render(); };
+  card.innerHTML = `
+    <div class="prop-card-icon">🏘️</div>
+    <div class="prop-card-name">All Properties</div>
+    <div class="prop-card-addr">${state.properties.length} properties</div>
+    <div class="prop-card-stats">
+      <div class="prop-card-stat">
+        <div class="prop-card-stat-val" style="color:var(--red)">${fmt(total)}</div>
+        <div class="prop-card-stat-lbl">Total</div>
+      </div>
+    </div>`;
+  return card;
+}
+
+function makeAddCard(label='Add Property') {
+  const card = document.createElement('div');
+  card.className = 'prop-card add-card';
+  card.onclick = openAddPropSheet;
+  card.innerHTML = `<div style="font-size:26px">+</div><div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700">${label}</div>`;
+  return card;
+}
+
+// ═══════════════════════════════════════════════════════
+// PAGE ROUTING
+// ═══════════════════════════════════════════════════════
+function switchPage(page, el) {
+  state.activePage = page;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.bn-tab').forEach(t=>t.classList.remove('active'));
+  $('page-'+page).classList.add('active');
+  el.classList.add('active');
+  renderPage(page);
+}
+function renderPage(page) {
+  if(page==='expenses') renderExpenses();
+  else if(page==='tenants') renderTenants();
+  else if(page==='messages') renderMessages();
+  else if(page==='scheduleE') renderScheduleE();
+}
+function render() { renderPage(state.activePage); }
+
+// ═══════════════════════════════════════════════════════
+// EXPENSES PAGE
+// ═══════════════════════════════════════════════════════
+function renderExpenses() {
+  const pg = $('page-expenses');
+  pg.innerHTML = '';
+
+  // ── SCROLL ROW (no padding wrapper) ──────────────────
+  const cards = [
+    makeAllCard(state.selectedProp==='all', state.expenses),
+    ...state.properties.map(p => makePropCard(p, state.selectedProp===p.id, state.expenses, state.tenants)),
+    makeAddCard()
+  ];
+  pg.appendChild(buildScrollRow(cards));
+
+  // ── EVERYTHING ELSE (padded) ──────────────────────────
+  const inner = document.createElement('div');
+  inner.className = 'page-inner';
+
+  const filtered = state.selectedProp==='all' ? state.expenses : state.expenses.filter(e=>e.propId===state.selectedProp);
+  const sorted = [...filtered].sort((a,b)=>b.date.localeCompare(a.date));
+  const total = filtered.reduce((s,e)=>s+Number(e.amount),0);
+  const ym = new Date().toISOString().slice(0,7);
+  const mTotal = filtered.filter(e=>e.date?.slice(0,7)===ym).reduce((s,e)=>s+Number(e.amount),0);
+  const propName = state.selectedProp!=='all' ? state.properties.find(p=>p.id===state.selectedProp)?.name : '';
+
+  inner.innerHTML = `
+    <div class="summary-banner">
+      <div class="summary-sublabel">Total Expenses${propName?' · '+propName:''}</div>
+      <div class="summary-total">${fmt(total)}</div>
+      <div class="summary-row">
+        <div class="summary-stat"><div class="summary-stat-v" style="color:var(--green)">${fmt(mTotal)}</div><div class="summary-stat-l">This month</div></div>
+        <div class="summary-stat"><div class="summary-stat-v">${filtered.length}</div><div class="summary-stat-l">Entries</div></div>
+        <div class="summary-stat"><div class="summary-stat-v" style="color:var(--accent)">${filtered.length?fmt(total/filtered.length):'$0'}</div><div class="summary-stat-l">Average</div></div>
+      </div>
+    </div>
+    <div class="sec-label" style="margin-top:4px">Expenses</div>
+    ${!sorted.length
+      ? `<div class="empty-state"><div class="empty-icon">📂</div><div class="empty-title">No expenses here</div><div class="empty-sub">Tap "Expense" above to add one.</div></div>`
+      : sorted.map(e=>{
+          const prop=state.properties.find(p=>p.id===e.propId);
+          const cat=catMap[e.category]||SCHE_CATS[14];
+          const color=catColor(e.category);
+          return `<div class="expense-item" onclick="viewExpense('${e.id}')">
+            <div class="exp-icon" style="background:${color}22">${cat.icon}</div>
+            <div class="exp-body">
+              <div class="exp-desc">${e.desc}</div>
+              <div class="exp-sub">
+                <span class="sche-pill" style="background:${color}18;color:${color}">${cat.name} · ${cat.line}</span>
+                ${prop&&state.selectedProp==='all'?`<span>${prop.name}</span>`:''}
+              </div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div class="exp-amount">${fmt(e.amount)}</div>
+              <div class="exp-date">${fmtDate(e.date)}</div>
+            </div>
+          </div>`;
+        }).join('')
+    }
+  `;
+  pg.appendChild(inner);
+}
+
+// ═══════════════════════════════════════════════════════
+// TENANTS PAGE
+// ═══════════════════════════════════════════════════════
+function renderTenants() {
+  const pg = $('page-tenants');
+  pg.innerHTML = '';
+
+  // ── SCROLL ROW ────────────────────────────────────────
+  const cards = state.properties.map(p => {
+    const cnt = state.tenants.filter(t=>t.propId===p.id).length;
+    const card = document.createElement('div');
+    card.className = 'prop-card' + (state.selectedProp===p.id?' selected':'');
+    card.onclick = () => { state.selectedProp = p.id; render(); };
+    card.innerHTML = `
+      <div class="prop-card-icon">🏠</div>
+      <div class="prop-card-name">${p.name}</div>
+      <div class="prop-card-addr">${p.type}</div>
+      <div class="prop-card-stats">
+        <div class="prop-card-stat">
+          <div class="prop-card-stat-val" style="color:var(--green)">${cnt}</div>
+          <div class="prop-card-stat-lbl">Tenants</div>
+        </div>
+      </div>`;
+    return card;
+  });
+  const allCard = document.createElement('div');
+  allCard.className = 'prop-card' + (state.selectedProp==='all'?' selected':'');
+  allCard.style.minWidth='150px';
+  allCard.onclick = () => { state.selectedProp='all'; render(); };
+  allCard.innerHTML = `<div class="prop-card-icon">🏘️</div><div class="prop-card-name">All Properties</div><div class="prop-card-addr">${state.properties.length} properties</div><div class="prop-card-stats"><div class="prop-card-stat"><div class="prop-card-stat-val" style="color:var(--green)">${state.tenants.length}</div><div class="prop-card-stat-lbl">Tenants</div></div></div>`;
+  pg.appendChild(buildScrollRow([allCard, ...cards, makeAddCard()]));
+
+  // ── PADDED CONTENT ────────────────────────────────────
+  const inner = document.createElement('div');
+  inner.className = 'page-inner';
+  const tenants = state.selectedProp==='all' ? state.tenants : state.tenants.filter(t=>t.propId===state.selectedProp);
+
+  if(!tenants.length) {
+    inner.innerHTML = `<div class="empty-state"><div class="empty-icon">👤</div><div class="empty-title">No tenants yet</div><div class="empty-sub">Add your first tenant to get started.</div></div><button class="btn btn-primary" onclick="openAddTenantSheet(null)" style="margin-top:0">+ Add Tenant</button>`;
+  } else {
+    inner.innerHTML = `<div class="sec-label">Tenants (${tenants.length})<span class="sec-label-action" onclick="openAddTenantSheet(null)">+ Add</span></div>`
+      + tenants.map(t=>{
+        const prop=state.properties.find(p=>p.id===t.propId);
+        const color=avatarColor(t.id);
+        const sc=t.status==='expiring'?'var(--red)':t.status==='current'?'var(--green)':'var(--muted)';
+        const sl=t.status==='expiring'?'⚠ Expiring':'✓ Current';
+        return `<div class="tenant-card">
+          <div class="tenant-header">
+            <div class="tenant-avatar" style="background:${color}">${initials(t.name)}</div>
+            <div style="flex:1;min-width:0">
+              <div class="tenant-name">${t.name}</div>
+              <div class="tenant-unit">${t.unit}${prop?' · '+prop.name:''}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--green)">${fmt(t.rent)}<span style="font-size:9px;color:var(--muted)">/mo</span></div>
+              <div style="font-size:10px;margin-top:2px;color:${sc};font-family:'Syne',sans-serif;font-weight:600">${sl}</div>
+            </div>
+          </div>
+          <div class="tenant-footer">
+            <div class="tenant-tag">📞 ${t.phone}</div>
+            <div class="tenant-tag">📅 Ends ${fmtDate(t.leaseEnd)}</div>
+          </div>
+          <div class="tenant-actions">
+            <button class="tenant-action-btn" onclick="viewTenant('${t.id}')">👤 Profile</button>
+            <button class="tenant-action-btn sms" onclick="openSMSSheet('${t.id}',false)">💬 Text</button>
+            <button class="tenant-action-btn" style="border-color:rgba(167,139,250,0.3);color:var(--purple)" onclick="openSMSSheet('${t.propId}',true)">📣 Broadcast</button>
+          </div>
+        </div>`;
+      }).join('');
+  }
+  pg.appendChild(inner);
+}
+
+// ═══════════════════════════════════════════════════════
+// MESSAGES PAGE
+// ═══════════════════════════════════════════════════════
+function renderMessages() {
+  const pg = $('page-messages');
+  const filter = state.msgFilter;
+  const msgs = filter==='all' ? state.messages
+    : filter==='broadcast' ? state.messages.filter(m=>m.type==='broadcast')
+    : state.messages.filter(m=>m.type==='unicast');
+  const sorted = [...msgs].sort((a,b)=>b.sent.localeCompare(a.sent));
+
+  pg.innerHTML = `<div class="page-inner">
+    <div class="broadcast-banner">
+      <div class="broadcast-icon">📡</div>
+      <div>
+        <div class="broadcast-title">Tenant Messaging</div>
+        <div class="broadcast-sub">Send individual texts or broadcast to all tenants via SMS.</div>
+      </div>
+    </div>
+    <button class="msg-compose-btn" onclick="openComposeSheet()">✏️ Compose New Message</button>
+    <div class="msg-filter">
+      ${['all','unicast','broadcast'].map(f=>`<div class="msg-filter-chip ${filter===f?'active':''}" onclick="setMsgFilter('${f}')">${f==='all'?'All':f==='unicast'?'Direct':'Broadcasts'}</div>`).join('')}
+    </div>
+    <div class="sec-label">History (${sorted.length})</div>
+    ${!sorted.length
+      ? `<div class="empty-state"><div class="empty-icon">💬</div><div class="empty-title">No messages sent yet</div></div>`
+      : sorted.map(m=>{
+          const prop=state.properties.find(p=>p.id===m.propId);
+          return `<div class="msg-item">
+            <div class="msg-item-header">
+              <div class="msg-item-to">${m.type==='broadcast'?'📣 '+prop?.name+' — All':'💬 '+m.toName}</div>
+              <div class="msg-item-time">${fmtDate(m.sent)}</div>
+            </div>
+            <div class="msg-item-body">${m.body}</div>
+            <div class="msg-item-meta">
+              <span class="msg-status ${m.type}">${m.type==='broadcast'?'Broadcast':'Sent'}</span>
+              ${prop?`<span style="font-size:10px;color:var(--muted)">${prop.name}</span>`:''}
+            </div>
+          </div>`;
+        }).join('')
+    }
+  </div>`;
+}
+
+function setMsgFilter(f){state.msgFilter=f;renderMessages()}
+
+// ═══════════════════════════════════════════════════════
+// SCHEDULE E PAGE
+// ═══════════════════════════════════════════════════════
+function renderScheduleE() {
+  const pg = $('page-scheduleE');
+  pg.innerHTML = '';
+
+  // ── SCROLL ROW ────────────────────────────────────────
+  const cards = [
+    makeAllCard(state.selectedProp==='all', state.expenses),
+    ...state.properties.map(p=>{
+      const pt=state.expenses.filter(e=>e.propId===p.id).reduce((s,e)=>s+Number(e.amount),0);
+      const card=document.createElement('div');
+      card.className='prop-card'+(state.selectedProp===p.id?' selected':'');
+      card.onclick=()=>{state.selectedProp=p.id;render()};
+      card.innerHTML=`<div class="prop-card-icon">🏠</div><div class="prop-card-name">${p.name}</div><div class="prop-card-addr">${p.address}</div><div class="prop-card-stats"><div class="prop-card-stat"><div class="prop-card-stat-val" style="color:var(--accent)">${fmt(pt)}</div><div class="prop-card-stat-lbl">Expenses</div></div></div>`;
+      return card;
+    })
+  ];
+  pg.appendChild(buildScrollRow(cards));
+
+  // ── PADDED CONTENT ────────────────────────────────────
+  const expenses = state.selectedProp==='all' ? state.expenses : state.expenses.filter(e=>e.propId===state.selectedProp);
+  const total = expenses.reduce((s,e)=>s+Number(e.amount),0);
+  const byLine = {};
+  expenses.forEach(e=>{byLine[e.category]=(byLine[e.category]||0)+Number(e.amount)});
+  const used = SCHE_CATS.filter(c=>byLine[c.id]);
+  const maxAmt = Math.max(...Object.values(byLine),1);
+
+  const inner = document.createElement('div');
+  inner.className = 'page-inner';
+  inner.innerHTML = `
+    <div class="irs-notice"><strong>IRS Schedule E — Part I (Rental Real Estate)</strong><br>Expenses mapped to official Form 1040 line numbers. Consult your tax advisor before filing.</div>
+    <div class="sec-label">Line-by-Line Summary</div>
+    <div class="sche-table">
+      <div class="sche-table-hdr"><span>Category</span><span>Line</span><span style="text-align:right">Amount</span></div>
+      ${!used.length
+        ?'<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">No expenses yet</div>'
+        :used.map(c=>`<div class="sche-row"><div class="sche-row-name">${c.icon} ${c.name}</div><div class="sche-row-line">${c.line}</div><div class="sche-row-amt">${fmt(byLine[c.id])}</div></div>`).join('')
+      }
+      ${used.length?`<div class="sche-total"><div class="sche-total-l">Total Deductible Expenses</div><div class="sche-total-v">${fmt(total)}</div></div>`:''}
+    </div>
+    <div class="sec-label">Breakdown Chart</div>
+    <div class="bar-chart">
+      ${used.map(c=>`<div class="bar-row"><div class="bar-lbl">${c.icon} ${c.name}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round((byLine[c.id]/maxAmt)*100)}%;background:${catColor(c.id)}"></div></div><div class="bar-val">${fmt(byLine[c.id])}</div></div>`).join('')||'<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px 0">No data yet</div>'}
+    </div>
+  `;
+  pg.appendChild(inner);
+}
+
+// ═══════════════════════════════════════════════════════
+// TENANT ACTIONS
+// ═══════════════════════════════════════════════════════
+function viewTenant(id) {
+  const t=state.tenants.find(x=>x.id===id); if(!t) return;
+  const prop=state.properties.find(p=>p.id===t.propId);
+  const color=avatarColor(t.id);
+  const sc=t.status==='expiring'?'var(--red)':'var(--green)';
+  showModal(`
+    <div class="tenant-profile-hdr">
+      <div class="tenant-profile-avatar" style="background:${color}">${initials(t.name)}</div>
+      <div><div class="tenant-profile-name">${t.name}</div><div class="tenant-profile-unit">${t.unit}${prop?' · '+prop.name:''}</div></div>
+    </div>
+    <div style="padding:18px">
+      <div class="detail-box">
+        <div class="detail-row"><span class="detail-lbl">Phone</span><span class="detail-val">${t.phone}</span></div>
+        <div class="detail-row"><span class="detail-lbl">Email</span><span class="detail-val" style="font-size:11px">${t.email}</span></div>
+        <div class="detail-row"><span class="detail-lbl">Monthly Rent</span><span class="detail-val" style="color:var(--green)">${fmt(t.rent)}</span></div>
+        <div class="detail-row"><span class="detail-lbl">Lease Ends</span><span class="detail-val" style="color:${sc}">${fmtDate(t.leaseEnd)}</span></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-blue" style="flex:1;margin-top:0" onclick="closeModal();openSMSSheet('${t.id}',false)">💬 Text</button>
+        <button class="btn btn-blue" style="flex:1;margin-top:0;background:var(--purple-dim);color:var(--purple);border-color:rgba(167,139,250,0.3)" onclick="closeModal();openSMSSheet('${t.propId}',true)">📣 Broadcast</button>
+      </div>
+      <button class="btn btn-danger" onclick="deleteTenant('${t.id}')">Remove Tenant</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Close</button>
+    </div>
+  `);
+}
+
+function openAddTenantSheet(propId) {
+  if(!state.properties.length){showToast('Add a property first','error');return}
+  const propOptions=state.properties.map(p=>`<option value="${p.id}" ${p.id===propId?'selected':''}>${p.name}</option>`).join('');
+  showModal(`
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Add Tenant</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Full Name *</label><input class="form-input" id="tn_name" type="text" placeholder="Jane Smith"></div>
+      <div class="form-group"><label class="form-label">Phone *</label><input class="form-input" id="tn_phone" type="tel" placeholder="312-555-0000"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="tn_email" type="email" placeholder="tenant@email.com"></div>
+    <div class="form-group"><label class="form-label">Property *</label><select class="form-input" id="tn_prop">${propOptions}</select></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Unit</label><input class="form-input" id="tn_unit" type="text" placeholder="Unit 1"></div>
+      <div class="form-group"><label class="form-label">Monthly Rent ($)</label><input class="form-input" id="tn_rent" type="number" placeholder="0.00" step="0.01"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Lease End Date</label><input class="form-input" id="tn_lease" type="date"></div>
+    <button class="btn btn-primary" onclick="saveTenant()">Add Tenant</button>
+    <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+  `);
+}
+
+function saveTenant() {
+  const name=$('tn_name')?.value?.trim();
+  const phone=$('tn_phone')?.value?.replace(/\D/g,'');
+  if(!name){showToast('Name is required','error');return}
+  if(!phone){showToast('Phone is required','error');return}
+  state.tenants.push({id:uid(),propId:$('tn_prop')?.value,name,phone,email:$('tn_email')?.value?.trim()||'',unit:$('tn_unit')?.value?.trim()||'Unit 1',rent:parseFloat($('tn_rent')?.value)||0,leaseEnd:$('tn_lease')?.value||'',status:'current'});
+  saveToStorage();closeModal();render();showToast('✓ Tenant added!','success');
+}
+
+function deleteTenant(id){state.tenants=state.tenants.filter(t=>t.id!==id);saveToStorage();closeModal();render();showToast('Tenant removed')}
+
+// ═══════════════════════════════════════════════════════
+// SMS PROXY CONFIG
+// ← Change this to your deployed server URL once live
+// For local testing: 'http://localhost:3000'
+// ═══════════════════════════════════════════════════════
+const SMS_PROXY_URL = 'http://localhost:3000';
+
+// ── Core send functions ──────────────────────────────────────────────────────
+
+async function apiSendSMS(phone, message) {
+  const res = await fetch(`${SMS_PROXY_URL}/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone, message }),
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'SMS send failed');
+  return data;
+}
+
+async function apiBroadcastSMS(phones, message) {
+  const res = await fetch(`${SMS_PROXY_URL}/broadcast`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phones, message }),
+  });
+  const data = await res.json();
+  if (!data.ok && !data.sent) throw new Error(data.error || 'Broadcast failed');
+  return data;
+}
+
+// ── Loading state helper ─────────────────────────────────────────────────────
+
+function setSendingState(btnId, sending) {
+  const btn = $(btnId);
+  if (!btn) return;
+  btn.disabled = sending;
+  btn.style.opacity = sending ? '0.6' : '1';
+  btn.textContent = sending ? '⏳ Sending…' : btn._origText || btn.textContent;
+  if (!sending && btn._origText) btn.textContent = btn._origText;
+}
+
+// ── SMS / MESSAGING ──────────────────────────────────────────────────────────
+
+function openSMSSheet(id, isBroadcast) {
+  if (!isBroadcast) {
+    const t = state.tenants.find(x => x.id === id); if (!t) return;
+    const color = avatarColor(t.id);
+    showModal(`
+      <div class="sheet-handle"></div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
+        <div style="width:46px;height:46px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:#0d0f12;flex-shrink:0">${initials(t.name)}</div>
+        <div>
+          <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800">${t.name}</div>
+          <div style="font-size:11px;color:var(--muted)">📞 ${t.phone}</div>
+        </div>
+      </div>
+      <div class="form-group"><label class="form-label">Message *</label><textarea class="form-input" id="sms_body" placeholder="Type your message…" rows="4"></textarea></div>
+      <div style="background:var(--blue-dim);border:1px solid rgba(96,165,250,0.2);border-radius:var(--radius-xs);padding:10px 12px;font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.7">
+        📡 Message will be sent via Twilio directly to ${t.name}'s phone — no app needed.
+      </div>
+      <button class="btn btn-blue" id="sms_send_btn" onclick="sendDirectSMS('${t.id}')">💬 Send SMS to ${t.name}</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+    `);
+    if ($('sms_send_btn')) $('sms_send_btn')._origText = `💬 Send SMS to ${t.name}`;
+  } else {
+    const prop = state.properties.find(p => p.id === id);
+    const tenants = state.tenants.filter(t => t.propId === id);
+    showModal(`
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">📣 Broadcast Text</div>
+      <div class="sheet-subtitle">Sends individually to all ${tenants.length} tenant(s) at ${prop?.name || 'this property'}</div>
+      ${tenants.length
+        ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">
+            ${tenants.map(t => `<div class="tenant-tag">
+              <div style="width:18px;height:18px;border-radius:50%;background:${avatarColor(t.id)};display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:#0d0f12;font-family:'Syne',sans-serif">${initials(t.name)}</div>
+              ${t.name.split(' ')[0]}
+            </div>`).join('')}
+           </div>`
+        : '<div style="color:var(--muted);font-size:12px;margin-bottom:14px">No tenants on this property.</div>'
+      }
+      <div class="form-group"><label class="form-label">Message *</label><textarea class="form-input" id="bc_body" placeholder="Type your broadcast message…" rows="4"></textarea></div>
+      <div style="background:var(--purple-dim);border:1px solid rgba(167,139,250,0.2);border-radius:var(--radius-xs);padding:10px 12px;font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.7">
+        📡 Twilio sends one SMS per tenant — each recipient gets an individual message.
+      </div>
+      <button class="btn btn-primary" id="bc_send_btn" style="background:var(--purple);color:#0b0d10"
+        onclick="sendBroadcastSMS('${id}')" ${!tenants.length ? 'disabled' : ''}>
+        📣 Broadcast to ${tenants.length} Tenant${tenants.length !== 1 ? 's' : ''}
+      </button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+    `);
+    if ($('bc_send_btn')) $('bc_send_btn')._origText = `📣 Broadcast to ${tenants.length} Tenant${tenants.length !== 1 ? 's' : ''}`;
+  }
+}
+
+async function sendDirectSMS(tenantId) {
+  const t = state.tenants.find(x => x.id === tenantId);
+  const body = $('sms_body')?.value?.trim();
+  if (!t || !body) { showToast('Please enter a message', 'error'); return; }
+
+  setSendingState('sms_send_btn', true);
+  try {
+    await apiSendSMS(t.phone, body);
+    state.messages.push({ id: uid(), type: 'unicast', toId: t.id, toName: t.name, propId: t.propId, body, sent: today(), status: 'sent' });
+    saveToStorage(); closeModal(); render();
+    showToast(`✓ SMS sent to ${t.name}`, 'success');
+  } catch (err) {
+    setSendingState('sms_send_btn', false);
+    showToast(`✗ Failed: ${err.message}`, 'error');
+  }
+}
+
+async function sendBroadcastSMS(propId) {
+  const tenants = state.tenants.filter(t => t.propId === propId);
+  const body = $('bc_body')?.value?.trim();
+  if (!body) { showToast('Please enter a message', 'error'); return; }
+  if (!tenants.length) { showToast('No tenants to message', 'error'); return; }
+
+  setSendingState('bc_send_btn', true);
+  try {
+    const phones = tenants.map(t => t.phone);
+    const result = await apiBroadcastSMS(phones, body);
+    state.messages.push({ id: uid(), type: 'broadcast', toId: null, toName: 'All Tenants', propId, body, sent: today(), status: 'sent' });
+    saveToStorage(); closeModal(); render();
+    const summary = result.failed > 0
+      ? `✓ ${result.sent} sent, ${result.failed} failed`
+      : `✓ Broadcast sent to ${result.sent} tenant${result.sent !== 1 ? 's' : ''}`;
+    showToast(summary, result.failed > 0 ? '' : 'success');
+  } catch (err) {
+    setSendingState('bc_send_btn', false);
+    showToast(`✗ Failed: ${err.message}`, 'error');
+  }
+}
+
+function openComposeSheet() {
+  const propOptions = state.properties.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+  const tenantOptions = ['<option value="">Select tenant…</option>', ...state.tenants.map(t => `<option value="${t.id}">${t.name}</option>`)].join('');
+  showModal(`
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Compose Message</div>
+    <div class="form-group"><label class="form-label">Type</label>
+      <div style="display:flex;gap:8px">
+        <button id="type_unicast" style="flex:1;padding:10px;border:1.5px solid rgba(96,165,250,0.5);background:var(--blue-dim);color:var(--blue);border-radius:var(--radius-xs);font-family:'Syne',sans-serif;font-size:11px;font-weight:700;cursor:pointer" onclick="setComposeType('unicast')">💬 Direct Text</button>
+        <button id="type_broadcast" style="flex:1;padding:10px;border:1.5px solid var(--border);background:transparent;color:var(--muted);border-radius:var(--radius-xs);font-family:'Syne',sans-serif;font-size:11px;font-weight:700;cursor:pointer" onclick="setComposeType('broadcast')">📣 Broadcast</button>
+      </div>
+    </div>
+    <div id="unicast_fields"><div class="form-group"><label class="form-label">To (Tenant) *</label><select class="form-input" id="msg_tenant">${tenantOptions}</select></div></div>
+    <div id="broadcast_fields" style="display:none"><div class="form-group"><label class="form-label">Property *</label><select class="form-input" id="msg_prop">${propOptions}</select></div></div>
+    <div class="form-group"><label class="form-label">Message *</label><textarea class="form-input" id="msg_body" placeholder="Type your message…" rows="4"></textarea></div>
+    <div style="background:var(--green-dim);border:1px solid rgba(61,214,140,0.2);border-radius:var(--radius-xs);padding:10px 12px;font-size:10px;color:var(--muted);margin-bottom:4px;line-height:1.7">
+      📡 Messages sent via Twilio — delivered as real SMS, no phone app needed.
+    </div>
+    <button class="btn btn-primary" id="compose_send_btn" onclick="sendComposedMessage()">Send SMS</button>
+    <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+  `);
+  window._composeType = 'unicast';
+}
+
+function setComposeType(type) {
+  window._composeType = type;
+  $('unicast_fields').style.display = type === 'unicast' ? 'block' : 'none';
+  $('broadcast_fields').style.display = type === 'broadcast' ? 'block' : 'none';
+  const uBtn = $('type_unicast'), bBtn = $('type_broadcast');
+  if (uBtn) uBtn.style.cssText = type === 'unicast'
+    ? 'flex:1;padding:10px;border:1.5px solid rgba(96,165,250,0.5);background:var(--blue-dim);color:var(--blue);border-radius:var(--radius-xs);font-family:Syne,sans-serif;font-size:11px;font-weight:700;cursor:pointer'
+    : 'flex:1;padding:10px;border:1.5px solid var(--border);background:transparent;color:var(--muted);border-radius:var(--radius-xs);font-family:Syne,sans-serif;font-size:11px;font-weight:700;cursor:pointer';
+  if (bBtn) bBtn.style.cssText = type === 'broadcast'
+    ? 'flex:1;padding:10px;border:1.5px solid rgba(167,139,250,0.5);background:var(--purple-dim);color:var(--purple);border-radius:var(--radius-xs);font-family:Syne,sans-serif;font-size:11px;font-weight:700;cursor:pointer'
+    : 'flex:1;padding:10px;border:1.5px solid var(--border);background:transparent;color:var(--muted);border-radius:var(--radius-xs);font-family:Syne,sans-serif;font-size:11px;font-weight:700;cursor:pointer';
+}
+
+async function sendComposedMessage() {
+  const body = $('msg_body')?.value?.trim();
+  if (!body) { showToast('Please enter a message', 'error'); return; }
+
+  setSendingState('compose_send_btn', true);
+  try {
+    if (window._composeType === 'unicast') {
+      const tenantId = $('msg_tenant')?.value;
+      if (!tenantId) { showToast('Select a tenant', 'error'); setSendingState('compose_send_btn', false); return; }
+      const t = state.tenants.find(x => x.id === tenantId); if (!t) return;
+      await apiSendSMS(t.phone, body);
+      state.messages.push({ id: uid(), type: 'unicast', toId: t.id, toName: t.name, propId: t.propId, body, sent: today(), status: 'sent' });
+      saveToStorage(); closeModal(); render();
+      showToast(`✓ SMS sent to ${t.name}`, 'success');
+    } else {
+      const propId = $('msg_prop')?.value;
+      const tenants = state.tenants.filter(t => t.propId === propId);
+      if (!tenants.length) { showToast('No tenants on that property', 'error'); setSendingState('compose_send_btn', false); return; }
+      const result = await apiBroadcastSMS(tenants.map(t => t.phone), body);
+      state.messages.push({ id: uid(), type: 'broadcast', toId: null, toName: 'All Tenants', propId, body, sent: today(), status: 'sent' });
+      saveToStorage(); closeModal(); render();
+      showToast(`✓ Broadcast sent to ${result.sent} tenant${result.sent !== 1 ? 's' : ''}`, 'success');
+    }
+  } catch (err) {
+    setSendingState('compose_send_btn', false);
+    showToast(`✗ Failed: ${err.message}`, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// ADD EXPENSE FLOW
+// ═══════════════════════════════════════════════════════
+function openAddExpenseSheet(){
+  state.pendingExpense={};state.parsedImage=null;state.selectedCategory=null;
+  showModal(`
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Add Expense</div>
+    <div class="upload-zone">
+      <input type="file" accept="image/*,application/pdf" onchange="handleFileUpload(event)">
+      <div class="upload-icon">📄</div>
+      <div class="upload-title">Upload Receipt or Invoice</div>
+      <div class="upload-sub">JPG, PNG, PDF · AI extracts & categorizes</div>
+    </div>
+    <button class="cam-btn"><input type="file" accept="image/*" capture="environment" onchange="handleFileUpload(event)">📷 Take a Photo</button>
+    <div class="or-div">or</div>
+    <button class="manual-btn" onclick="openManualExpenseForm({})">✏️ Enter Manually</button>
+  `);
+}
+
+function handleFileUpload(evt){
+  const file=evt.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{state.parsedImage=e.target.result;showParsingModal(file,e.target.result)};
+  reader.readAsDataURL(file);
+}
+
+function showParsingModal(file,dataUrl){
+  const imgTag=file.type.startsWith('image/')?`<img src="${dataUrl}" class="img-preview" alt="Receipt">`:'';
+  showModal(`<div class="sheet-handle"></div><div class="sheet-title">Reading Document</div>${imgTag}<div class="parsing-box"><div class="spinner"></div><div class="parsing-text">AI extracting & categorizing…</div></div><div style="color:var(--muted);font-size:11px;text-align:center">Mapping to IRS Schedule E lines</div>`);
+  parseWithAI(file,dataUrl);
+}
+
+async function parseWithAI(file,dataUrl){
+  const catList=SCHE_CATS.map(c=>`"${c.id}" (${c.name}, ${c.line})`).join(', ');
+  try{
+    let messages;
+    if(file.type.startsWith('image/')){
+      const base64=dataUrl.split(',')[1];
+      messages=[{role:'user',content:[{type:'image',source:{type:'base64',media_type:file.type,data:base64}},{type:'text',text:`Extract expense info. Return ONLY raw JSON: {"description":string,"amount":number|null,"date":"YYYY-MM-DD"|null,"vendor":string|null,"category":one of [${catList}]|null}`}]}];
+    } else {
+      messages=[{role:'user',content:'Return template JSON: {"description":null,"amount":null,"date":null,"vendor":null,"category":null}'}];
+    }
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:600,messages})});
+    const data=await resp.json();
+    const text=data.content?.map(b=>b.text||'').join('')||'';
+    let parsed={};try{parsed=JSON.parse(text.replace(/```json|```/g,'').trim())}catch(e){}
+    state.pendingExpense={...parsed};
+    checkMissingAndProceed(parsed);
+  }catch(err){showToast('Could not parse — enter manually','error');openManualExpenseForm({})}
+}
+
+function checkMissingAndProceed(data){
+  const missing=[];
+  if(!data.description) missing.push('description');
+  if(!data.amount&&data.amount!==0) missing.push('amount');
+  if(!data.date) missing.push('date');
+  if(!data.vendor) missing.push('vendor');
+  if(!data.category) missing.push('category');
+  missing.length?openMissingModal(data,missing):openManualExpenseForm(data,true);
+}
+
+function openMissingModal(data,missing){
+  const propOptions=state.properties.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  const hasCat=missing.includes('category');
+  const fields=missing.filter(f=>f!=='category').map(f=>{
+    if(f==='amount') return `<div class="form-group"><label class="form-label">Amount ($) *</label><input class="form-input" type="number" id="miss_amount" placeholder="0.00" step="0.01" value="${data.amount||''}"></div>`;
+    if(f==='description') return `<div class="form-group"><label class="form-label">Description *</label><input class="form-input" type="text" id="miss_description" placeholder="e.g. HVAC Repair" value="${data.description||''}"></div>`;
+    if(f==='date') return `<div class="form-group"><label class="form-label">Date *</label><input class="form-input" type="date" id="miss_date" value="${data.date||today()}"></div>`;
+    if(f==='vendor') return `<div class="form-group"><label class="form-label">Vendor</label><input class="form-input" type="text" id="miss_vendor" placeholder="e.g. ABC Contractors" value="${data.vendor||''}"></div>`;
+    return '';
+  }).join('');
+  const catHtml=hasCat?`<div class="form-group"><label class="form-label">Schedule E Category *</label><div class="cat-grid">${SCHE_CATS.map(c=>`<div class="cat-opt" id="mco_${c.id}" onclick="selectMissingCat('${c.id}')"><div class="cat-opt-icon">${c.icon}</div><div class="cat-opt-name">${c.name}</div><div class="cat-opt-line">${c.line}</div></div>`).join('')}</div></div>`:'';
+  showModal(`<div class="miss-hdr"><div class="miss-hdr-title">⚠️ Missing Information</div><div class="miss-hdr-sub">We need ${missing.length} more detail${missing.length>1?'s':''} to save.</div></div><div class="miss-body">${state.parsedImage?.startsWith('data:image')?`<img src="${state.parsedImage}" class="img-preview">`:''}${fields}${catHtml}<div class="form-group"><label class="form-label">Property *</label><select class="form-input" id="miss_prop">${propOptions}</select></div><button class="btn btn-primary" onclick="submitMissing('${missing.join(',')}')">Save Expense →</button><button class="btn btn-secondary" onclick="openManualExpenseForm(state.pendingExpense||{})">Edit All Fields</button></div>`,true);
+}
+
+let _missCat=null;
+function selectMissingCat(id){_missCat=id;document.querySelectorAll('[id^="mco_"]').forEach(el=>el.classList.remove('sel'));const el=document.getElementById('mco_'+id);if(el)el.classList.add('sel')}
+
+function submitMissing(missingStr){
+  const missing=missingStr.split(',');const data={...state.pendingExpense};
+  for(const f of missing){if(f==='category'){data.category=_missCat;continue}const el=document.getElementById('miss_'+f);if(el)data[f]=el.value}
+  const propEl=$('miss_prop');if(propEl)data.propId=propEl.value;
+  data.amount=parseFloat(data.amount)||0;
+  if(!data.amount||!data.description){showToast('Amount and description required','error');return}
+  if(!data.category){showToast('Select a Schedule E category','error');return}
+  saveExpense(data);
+}
+
+function openManualExpenseForm(prefill={},isAI=false){
+  state.selectedCategory=prefill.category||null;
+  if(!state.properties.length){showToast('Add a property first','error');openAddPropSheet();return}
+  const defProp=prefill.propId||state.properties[0]?.id||'';
+  const propOptions=state.properties.map(p=>`<option value="${p.id}" ${p.id===defProp?'selected':''}>${p.name}</option>`).join('');
+  const catGrid=SCHE_CATS.map(c=>`<div class="cat-opt ${c.id===state.selectedCategory?'sel':''}" id="fco_${c.id}" onclick="selectFormCat('${c.id}')"><div class="cat-opt-icon">${c.icon}</div><div class="cat-opt-name">${c.name}</div><div class="cat-opt-line">${c.line}</div></div>`).join('');
+  const aiTag=isAI?`<div class="ai-tag">✦ AI-extracted — verify before saving</div>`:'';
+  const imgTag=isAI&&state.parsedImage?.startsWith('data:image')?`<img src="${state.parsedImage}" class="img-preview">`:'';
+  showModal(`<div class="sheet-handle"></div><div class="sheet-title">${isAI?'Confirm Details':'Add Expense'}</div>${aiTag}${imgTag}<div class="form-group"><label class="form-label">Property *</label><select class="form-input" id="f_prop">${propOptions}</select></div><div class="form-group"><label class="form-label">Description *</label><input class="form-input" id="f_desc" type="text" placeholder="e.g. HVAC Repair" value="${prefill.description||''}"></div><div class="form-row"><div class="form-group"><label class="form-label">Amount ($) *</label><input class="form-input" id="f_amount" type="number" placeholder="0.00" step="0.01" value="${prefill.amount||''}"></div><div class="form-group"><label class="form-label">Date *</label><input class="form-input" id="f_date" type="date" value="${prefill.date||today()}"></div></div><div class="form-group"><label class="form-label">Vendor</label><input class="form-input" id="f_vendor" type="text" placeholder="e.g. ABC Contractors" value="${prefill.vendor||''}"></div><div class="form-group"><label class="form-label">Schedule E Category *</label><div class="cat-grid">${catGrid}</div></div><button class="btn btn-primary" onclick="submitManualExpense()">Save Expense</button><button class="btn btn-secondary" onclick="closeModal()">Cancel</button>`);
+}
+
+function selectFormCat(id){state.selectedCategory=id;document.querySelectorAll('[id^="fco_"]').forEach(el=>el.classList.remove('sel'));const el=document.getElementById('fco_'+id);if(el)el.classList.add('sel')}
+
+function submitManualExpense(){
+  const desc=$('f_desc')?.value?.trim();const amount=parseFloat($('f_amount')?.value);const date=$('f_date')?.value;const vendor=$('f_vendor')?.value?.trim();const propId=$('f_prop')?.value;
+  if(!desc){showToast('Description required','error');return}
+  if(!amount||isNaN(amount)){showToast('Valid amount required','error');return}
+  if(!state.selectedCategory){showToast('Select a Schedule E category','error');return}
+  if(!propId){showToast('Select a property','error');return}
+  saveExpense({description:desc,amount,date,vendor,category:state.selectedCategory,propId});
+}
+
+function saveExpense(data){
+  state.expenses.push({id:uid(),propId:data.propId||state.properties[0]?.id,desc:data.description,amount:parseFloat(data.amount)||0,date:data.date||today(),vendor:data.vendor||'',category:data.category||'other'});
+  state.parsedImage=null;state.pendingExpense=null;state.selectedCategory=null;
+  saveToStorage();closeModal();render();showToast('✓ Expense saved!','success');
+}
+
+function viewExpense(id){
+  const e=state.expenses.find(x=>x.id===id);if(!e)return;
+  const prop=state.properties.find(p=>p.id===e.propId);
+  const cat=catMap[e.category]||SCHE_CATS[14];const color=catColor(e.category);
+  showModal(`<div class="sheet-handle"></div><div style="display:flex;align-items:center;gap:14px;margin-bottom:20px"><div style="width:52px;height:52px;border-radius:14px;background:${color}22;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">${cat.icon}</div><div><div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800">${e.desc}</div><div style="font-size:11px;color:var(--muted);margin-top:3px">${prop?.name||''}</div></div></div><div class="detail-box"><div class="detail-row"><span class="detail-lbl">Amount</span><span class="detail-val" style="color:var(--red)">${fmt(e.amount)}</span></div><div class="detail-row"><span class="detail-lbl">Date</span><span class="detail-val">${fmtDate(e.date)}</span></div><div class="detail-row"><span class="detail-lbl">Vendor</span><span class="detail-val">${e.vendor||'—'}</span></div><div class="detail-row"><span class="detail-lbl">Schedule E</span><span class="detail-val" style="color:${color}">${cat.name}</span></div><div class="detail-row"><span class="detail-lbl">IRS Line</span><span class="detail-val" style="color:var(--accent)">${cat.line}</span></div></div><button class="btn btn-danger" onclick="deleteExpense('${e.id}')">🗑 Delete</button><button class="btn btn-secondary" onclick="closeModal()">Close</button>`);
+}
+function deleteExpense(id){state.expenses=state.expenses.filter(e=>e.id!==id);saveToStorage();closeModal();render();showToast('Expense deleted')}
+
+// ═══════════════════════════════════════════════════════
+// PROPERTIES
+// ═══════════════════════════════════════════════════════
+function openAddPropSheet(){
+  showModal(`<div class="sheet-handle"></div><div class="sheet-title">Add Property</div><div class="form-group"><label class="form-label">Property Name *</label><input class="form-input" id="pn_name" type="text" placeholder="e.g. 123 Oak Street"></div><div class="form-group"><label class="form-label">Address</label><input class="form-input" id="pn_addr" type="text" placeholder="Full street address"></div><div class="form-row"><div class="form-group"><label class="form-label">Type</label><select class="form-input" id="pn_type"><option>Single Family</option><option>Duplex</option><option>Multi-Family</option><option>Condo</option><option>Townhouse</option><option>Commercial</option></select></div><div class="form-group"><label class="form-label">Units</label><input class="form-input" id="pn_units" type="number" min="1" value="1"></div></div><button class="btn btn-primary" onclick="saveProperty()">Add Property</button><button class="btn btn-secondary" onclick="closeModal()">Cancel</button>`);
+}
+function saveProperty(){
+  const name=$('pn_name')?.value?.trim();if(!name){showToast('Property name required','error');return}
+  state.properties.push({id:'p'+Date.now(),name,address:$('pn_addr')?.value?.trim()||'',type:$('pn_type')?.value||'Single Family',units:parseInt($('pn_units')?.value)||1});
+  saveToStorage();closeModal();render();showToast('✓ Property added!','success');
+}
+
+// ═══════════════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════════════
+function openExportSheet(){
+  const propOptions=['<option value="all">All Properties</option>',...state.properties.map(p=>`<option value="${p.id}">${p.name}</option>`)].join('');
+  showModal(`
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Export & Data</div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin-bottom:12px">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;margin-bottom:4px">📊 Expenses CSV</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.6">Schedule E ready with IRS line numbers.</div>
+      <div class="form-group"><label class="form-label">Property</label><select class="form-input" id="exp_prop">${propOptions}</select></div>
+      <button class="btn btn-primary" onclick="exportExpensesCSV()" style="margin-top:4px">⬇ Download Expenses CSV</button>
+    </div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin-bottom:12px">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;margin-bottom:4px">👥 Tenant Roster CSV</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.6">Names, phones, emails, rent, lease dates.</div>
+      <button class="btn btn-secondary" onclick="exportTenantsCSV()" style="margin-top:0">⬇ Download Tenants CSV</button>
+    </div>
+    <div style="background:var(--red-dim);border:1px solid rgba(224,90,108,0.25);border-radius:var(--radius-sm);padding:16px;margin-bottom:12px">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;margin-bottom:4px;color:var(--red)">🗑 Reset App Data</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.6">Wipe all properties, tenants, expenses and messages. Cannot be undone — export first!</div>
+      <button class="btn btn-danger" onclick="clearAllData()" style="margin-top:0">Clear All Data</button>
+    </div>
+    <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+  `);
+}
+function clearAllData(){
+  if(!confirm('This will permanently delete ALL data. Are you sure?')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  state.properties=[];state.tenants=[];state.expenses=[];state.messages=[];
+  closeModal();render();showToast('All data cleared');
+}
+function exportExpensesCSV(){
+  const propId=$('exp_prop')?.value||'all';
+  const expenses=propId==='all'?state.expenses:state.expenses.filter(e=>e.propId===propId);
+  const rows=[['Property','Description','Amount','Date','Vendor','Schedule E Category','IRS Line']];
+  for(const e of expenses){const prop=state.properties.find(p=>p.id===e.propId);const cat=catMap[e.category]||SCHE_CATS[14];rows.push([prop?.name||'',e.desc,e.amount,e.date,e.vendor||'',cat.name,cat.line])}
+  downloadCSV(rows,'proptrack-expenses.csv');closeModal();showToast('✓ CSV downloaded','success');
+}
+function exportTenantsCSV(){
+  const rows=[['Property','Name','Phone','Email','Unit','Monthly Rent','Lease End','Status']];
+  for(const t of state.tenants){const prop=state.properties.find(p=>p.id===t.propId);rows.push([prop?.name||'',t.name,t.phone,t.email,t.unit,t.rent,t.leaseEnd,t.status])}
+  downloadCSV(rows,'proptrack-tenants.csv');closeModal();showToast('✓ CSV downloaded','success');
+}
+function downloadCSV(rows,filename){
+  const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════════════════
+// MODAL ENGINE
+// ═══════════════════════════════════════════════════════
+function showModal(html,isMiss=false){
+  closeModal();
+  const backdrop=document.createElement('div');backdrop.className='backdrop';backdrop.id='modal-backdrop';
+  backdrop.onclick=e=>{if(e.target===backdrop)closeModal()};
+  const sheet=document.createElement('div');sheet.className=isMiss?'miss-sheet':'sheet';sheet.innerHTML=html;
+  backdrop.appendChild(sheet);document.getElementById('app').appendChild(backdrop);
+}
+function closeModal(){const m=$('modal-backdrop');if(m)m.remove()}
+
+// globals for inline handlers
+window.state=state;window.openManualExpenseForm=openManualExpenseForm;
+window.selectMissingCat=selectMissingCat;window.selectFormCat=selectFormCat;
+window.setComposeType=setComposeType;window._composeType='unicast';
+
+// ── INIT ────────────────────────────────────────────────
+// Log whether we loaded saved data or defaults
+if(saved){
+  console.log(`[PropTrack] Loaded saved data — ${state.properties.length} properties, ${state.tenants.length} tenants, ${state.expenses.length} expenses`);
+} else {
+  console.log('[PropTrack] No saved data found — loaded sample data. Your changes will be saved automatically.');
+}
+renderExpenses();
+</script>
+</body>
+</html>
