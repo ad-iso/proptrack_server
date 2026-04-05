@@ -504,7 +504,13 @@ function makePropCard(p, selected, expenses, tenants) {
         <div class="prop-card-stat-val" style="color:var(--green)">${pTenants.length}</div>
         <div class="prop-card-stat-lbl">Tenants</div>
       </div>
-    </div>`;
+    </div>
+    <button onclick="event.stopPropagation();openManagePropSheet('${p.id}')"
+      style="margin-top:10px;width:100%;padding:5px;border-radius:6px;background:transparent;border:1px solid var(--border);color:var(--muted);font-family:'Syne',sans-serif;font-size:10px;font-weight:600;cursor:pointer;letter-spacing:0.3px;"
+      onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+      onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
+      ⚙ Manage
+    </button>`;
   return card;
 }
 
@@ -604,6 +610,7 @@ function renderExpenses() {
               <div class="exp-sub">
                 <span class="sche-pill" style="background:${color}18;color:${color}">${cat.name} · ${cat.line}</span>
                 ${prop&&state.selectedProp==='all'?`<span>${prop.name}</span>`:''}
+                ${e.receipt?`<span style="color:var(--green);font-size:9px">📎 receipt</span>`:''}
               </div>
             </div>
             <div style="text-align:right;flex-shrink:0">
@@ -854,7 +861,7 @@ function deleteTenant(id){state.tenants=state.tenants.filter(t=>t.id!==id);saveT
 // ← Change this to your deployed server URL once live
 // For local testing: 'http://localhost:3000'
 // ═══════════════════════════════════════════════════════
-const SMS_PROXY_URL = 'https://proptrackserver-production.up.railway.app/';
+const SMS_PROXY_URL = 'http://localhost:3000';
 
 // ── Core send functions ──────────────────────────────────────────────────────
 
@@ -1157,11 +1164,20 @@ function submitManualExpense(){
   if(!amount||isNaN(amount)){showToast('Valid amount required','error');return}
   if(!state.selectedCategory){showToast('Select a Schedule E category','error');return}
   if(!propId){showToast('Select a property','error');return}
-  saveExpense({description:desc,amount,date,vendor,category:state.selectedCategory,propId});
+  saveExpense({description:desc,amount,date,vendor,category:state.selectedCategory,propId,receipt:state.parsedImage||null});
 }
 
 function saveExpense(data){
-  state.expenses.push({id:uid(),propId:data.propId||state.properties[0]?.id,desc:data.description,amount:parseFloat(data.amount)||0,date:data.date||today(),vendor:data.vendor||'',category:data.category||'other'});
+  state.expenses.push({
+    id:uid(),
+    propId:data.propId||state.properties[0]?.id,
+    desc:data.description,
+    amount:parseFloat(data.amount)||0,
+    date:data.date||today(),
+    vendor:data.vendor||'',
+    category:data.category||'other',
+    receipt:data.receipt||null,   // base64 image string or null
+  });
   state.parsedImage=null;state.pendingExpense=null;state.selectedCategory=null;
   saveToStorage();closeModal();render();showToast('✓ Expense saved!','success');
 }
@@ -1170,8 +1186,106 @@ function viewExpense(id){
   const e=state.expenses.find(x=>x.id===id);if(!e)return;
   const prop=state.properties.find(p=>p.id===e.propId);
   const cat=catMap[e.category]||SCHE_CATS[14];const color=catColor(e.category);
-  showModal(`<div class="sheet-handle"></div><div style="display:flex;align-items:center;gap:14px;margin-bottom:20px"><div style="width:52px;height:52px;border-radius:14px;background:${color}22;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">${cat.icon}</div><div><div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800">${e.desc}</div><div style="font-size:11px;color:var(--muted);margin-top:3px">${prop?.name||''}</div></div></div><div class="detail-box"><div class="detail-row"><span class="detail-lbl">Amount</span><span class="detail-val" style="color:var(--red)">${fmt(e.amount)}</span></div><div class="detail-row"><span class="detail-lbl">Date</span><span class="detail-val">${fmtDate(e.date)}</span></div><div class="detail-row"><span class="detail-lbl">Vendor</span><span class="detail-val">${e.vendor||'—'}</span></div><div class="detail-row"><span class="detail-lbl">Schedule E</span><span class="detail-val" style="color:${color}">${cat.name}</span></div><div class="detail-row"><span class="detail-lbl">IRS Line</span><span class="detail-val" style="color:var(--accent)">${cat.line}</span></div></div><button class="btn btn-danger" onclick="deleteExpense('${e.id}')">🗑 Delete</button><button class="btn btn-secondary" onclick="closeModal()">Close</button>`);
+  const receiptSection = e.receipt
+    ? `<div style="margin-bottom:16px">
+        <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;font-weight:500">Receipt</div>
+        <img src="${e.receipt}" onclick="openFullReceipt('${e.id}')"
+          style="width:100%;border-radius:10px;border:1px solid var(--border);cursor:pointer;max-height:200px;object-fit:cover"
+          title="Tap to view full receipt">
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button onclick="openFullReceipt('${e.id}')"
+            style="flex:1;padding:8px;border-radius:var(--radius-xs);background:var(--surface2);border:1px solid var(--border);color:var(--text2);font-family:'Syne',sans-serif;font-size:11px;font-weight:600;cursor:pointer">
+            🔍 View Full
+          </button>
+          <button onclick="replaceReceipt('${e.id}')"
+            style="flex:1;padding:8px;border-radius:var(--radius-xs);background:var(--surface2);border:1px solid var(--border);color:var(--text2);font-family:'Syne',sans-serif;font-size:11px;font-weight:600;cursor:pointer;position:relative;overflow:hidden">
+            📎 Replace
+            <input type="file" accept="image/*" onchange="attachReceiptToExpense('${e.id}',event)"
+              style="position:absolute;inset:0;opacity:0;cursor:pointer">
+          </button>
+          <button onclick="removeReceipt('${e.id}')"
+            style="flex:1;padding:8px;border-radius:var(--radius-xs);background:var(--red-dim);border:1px solid rgba(224,90,108,0.3);color:var(--red);font-family:'Syne',sans-serif;font-size:11px;font-weight:600;cursor:pointer">
+            🗑 Remove
+          </button>
+        </div>
+      </div>`
+    : `<div style="margin-bottom:16px">
+        <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;font-weight:500">Receipt</div>
+        <div style="border:2px dashed var(--border);border-radius:10px;padding:20px;text-align:center;position:relative;background:var(--surface2)">
+          <input type="file" accept="image/*" capture="environment" onchange="attachReceiptToExpense('${e.id}',event)"
+            style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">
+          <div style="font-size:22px;margin-bottom:6px">📎</div>
+          <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;margin-bottom:2px">Attach Receipt</div>
+          <div style="font-size:10px;color:var(--muted)">Tap to upload photo or take a picture</div>
+        </div>
+      </div>`;
+
+  showModal(`
+    <div class="sheet-handle"></div>
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+      <div style="width:52px;height:52px;border-radius:14px;background:${color}22;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">${cat.icon}</div>
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800">${e.desc}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">${prop?.name||''}</div>
+      </div>
+    </div>
+    ${receiptSection}
+    <div class="detail-box">
+      <div class="detail-row"><span class="detail-lbl">Amount</span><span class="detail-val" style="color:var(--red)">${fmt(e.amount)}</span></div>
+      <div class="detail-row"><span class="detail-lbl">Date</span><span class="detail-val">${fmtDate(e.date)}</span></div>
+      <div class="detail-row"><span class="detail-lbl">Vendor</span><span class="detail-val">${e.vendor||'—'}</span></div>
+      <div class="detail-row"><span class="detail-lbl">Schedule E</span><span class="detail-val" style="color:${color}">${cat.name}</span></div>
+      <div class="detail-row"><span class="detail-lbl">IRS Line</span><span class="detail-val" style="color:var(--accent)">${cat.line}</span></div>
+    </div>
+    <button class="btn btn-danger" onclick="deleteExpense('${e.id}')">🗑 Delete Expense</button>
+    <button class="btn btn-secondary" onclick="closeModal()">Close</button>
+  `);
 }
+
+function attachReceiptToExpense(expenseId, evt) {
+  const file = evt.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const expense = state.expenses.find(x => x.id === expenseId);
+    if (!expense) return;
+    expense.receipt = e.target.result;
+    saveToStorage();
+    closeModal();
+    viewExpense(expenseId);
+    showToast('✓ Receipt attached', 'success');
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeReceipt(expenseId) {
+  if (!confirm('Remove the receipt photo from this expense?')) return;
+  const expense = state.expenses.find(x => x.id === expenseId);
+  if (!expense) return;
+  expense.receipt = null;
+  saveToStorage();
+  closeModal();
+  viewExpense(expenseId);
+  showToast('Receipt removed');
+}
+
+function openFullReceipt(expenseId) {
+  const expense = state.expenses.find(x => x.id === expenseId);
+  if (!expense?.receipt) return;
+  // Open receipt in a full-screen overlay
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px';
+  overlay.onclick = () => overlay.remove();
+  overlay.innerHTML = `
+    <div style="font-family:'Syne',sans-serif;font-size:12px;color:var(--muted);margin-bottom:12px;letter-spacing:0.5px">Tap anywhere to close</div>
+    <img src="${expense.receipt}" style="max-width:100%;max-height:80vh;border-radius:10px;object-fit:contain;box-shadow:0 8px 40px rgba(0,0,0,0.6)">
+    <a href="${expense.receipt}" download="receipt-${expense.id}.jpg"
+      onclick="event.stopPropagation()"
+      style="margin-top:16px;padding:10px 24px;background:var(--accent);color:#0b0d10;border-radius:8px;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;text-decoration:none">
+      ⬇ Download Receipt
+    </a>`;
+  document.body.appendChild(overlay);
+}
+
 function deleteExpense(id){state.expenses=state.expenses.filter(e=>e.id!==id);saveToStorage();closeModal();render();showToast('Expense deleted')}
 
 // ═══════════════════════════════════════════════════════
@@ -1184,6 +1298,50 @@ function saveProperty(){
   const name=$('pn_name')?.value?.trim();if(!name){showToast('Property name required','error');return}
   state.properties.push({id:'p'+Date.now(),name,address:$('pn_addr')?.value?.trim()||'',type:$('pn_type')?.value||'Single Family',units:parseInt($('pn_units')?.value)||1});
   saveToStorage();closeModal();render();showToast('✓ Property added!','success');
+}
+
+function openManagePropSheet(propId) {
+  const p = state.properties.find(x => x.id === propId); if (!p) return;
+  const tenantCount  = state.tenants.filter(t => t.propId === propId).length;
+  const expenseCount = state.expenses.filter(e => e.propId === propId).length;
+  const totalSpend   = state.expenses.filter(e => e.propId === propId).reduce((s,e) => s + Number(e.amount), 0);
+
+  showModal(`
+    <div class="sheet-handle"></div>
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+      <div style="width:52px;height:52px;border-radius:14px;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0">🏠</div>
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800">${p.name}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">${p.type} · ${p.units} unit${p.units!==1?'s':''}</div>
+      </div>
+    </div>
+    <div class="detail-box">
+      <div class="detail-row"><span class="detail-lbl">Address</span><span class="detail-val" style="font-size:11px;text-align:right;max-width:60%">${p.address||'—'}</span></div>
+      <div class="detail-row"><span class="detail-lbl">Tenants</span><span class="detail-val">${tenantCount}</span></div>
+      <div class="detail-row"><span class="detail-lbl">Expenses</span><span class="detail-val">${expenseCount}</span></div>
+      <div class="detail-row"><span class="detail-lbl">Total Spend</span><span class="detail-val" style="color:var(--red)">${fmt(totalSpend)}</span></div>
+    </div>
+    <div style="background:var(--red-dim);border:1px solid rgba(224,90,108,0.2);border-radius:var(--radius-xs);padding:11px 13px;font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:8px">
+      ⚠️ Deleting this property will also permanently remove all <strong style="color:var(--text)">${tenantCount} tenant${tenantCount!==1?'s':''}</strong> and <strong style="color:var(--text)">${expenseCount} expense${expenseCount!==1?'s':''}</strong> linked to it.
+    </div>
+    <button class="btn btn-danger" onclick="deleteProp('${propId}')">🗑 Delete Property</button>
+    <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+  `);
+}
+
+function deleteProp(propId) {
+  const p = state.properties.find(x => x.id === propId); if (!p) return;
+  const tenantCount  = state.tenants.filter(t => t.propId === propId).length;
+  const expenseCount = state.expenses.filter(e => e.propId === propId).length;
+  const msg = `Delete "${p.name}"?${tenantCount||expenseCount ? `\n\nThis will also delete ${[tenantCount&&`${tenantCount} tenant${tenantCount!==1?'s':''}`,expenseCount&&`${expenseCount} expense${expenseCount!==1?'s':''}`].filter(Boolean).join(' and ')}.` : ''}\n\nThis cannot be undone.`;
+  if (!confirm(msg)) return;
+  state.properties = state.properties.filter(x => x.id !== propId);
+  state.tenants    = state.tenants.filter(t => t.propId !== propId);
+  state.expenses   = state.expenses.filter(e => e.propId !== propId);
+  state.messages   = state.messages.filter(m => m.propId !== propId);
+  if (state.selectedProp === propId) state.selectedProp = 'all';
+  saveToStorage(); closeModal(); render();
+  showToast(`"${p.name}" deleted`, '');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1253,6 +1411,10 @@ function closeModal(){const m=$('modal-backdrop');if(m)m.remove()}
 window.state=state;window.openManualExpenseForm=openManualExpenseForm;
 window.selectMissingCat=selectMissingCat;window.selectFormCat=selectFormCat;
 window.setComposeType=setComposeType;window._composeType='unicast';
+window.openManagePropSheet=openManagePropSheet;window.deleteProp=deleteProp;
+window.attachReceiptToExpense=attachReceiptToExpense;
+window.removeReceipt=removeReceipt;
+window.openFullReceipt=openFullReceipt;
 
 // ── INIT ────────────────────────────────────────────────
 // Log whether we loaded saved data or defaults
